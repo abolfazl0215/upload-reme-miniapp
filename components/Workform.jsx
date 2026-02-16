@@ -53,27 +53,56 @@ export default function WorkerForm() {
   ];
 
   useEffect(() => {
-    if (typeof window !== "undefined" && window.Telegram?.WebApp) {
-      const tg = window.Telegram.WebApp;
-      tg.ready();
-      //   tg.expand();
+    // Check if we're in a browser environment
+    if (typeof window === "undefined") return;
 
-      const user = tg.initDataUnsafe?.user;
-      if (user) {
-        setTelegramUser(user);
-        // Auto-fill telegram username if available
-        if (user.username) {
-          setFormData((prev) => ({
-            ...prev,
-            telegramUsername: user.username,
-          }));
+    // Wait for Telegram WebApp to be available
+    const initTelegram = () => {
+      if (window.Telegram?.WebApp) {
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        // tg.expand();
+
+        console.log("Telegram WebApp initialized:", tg);
+        console.log("Init Data Unsafe:", tg.initDataUnsafe);
+
+        const user = tg.initDataUnsafe?.user;
+        console.log("User data:", user);
+
+        if (user && user.id) {
+          setTelegramUser(user);
+          // Auto-fill telegram username if available
+          if (user.username) {
+            setFormData((prev) => ({
+              ...prev,
+              telegramUsername: user.username,
+            }));
+          }
+          console.log("Telegram user set successfully:", user);
+        } else {
+          // For testing purposes outside Telegram
+          console.warn("No Telegram user found - this might be a test environment");
+          // Uncomment below for local testing only
+          // setTelegramUser({
+          //   id: 123456789,
+          //   first_name: "Test",
+          //   last_name: "User",
+          //   username: "testuser",
+          // });
         }
-      }
 
-      tg.MainButton.setText("ارسال فرم");
-      tg.MainButton.color = "#D97706";
-      tg.MainButton.textColor = "#FFFFFF";
-    }
+        tg.MainButton.setText("ارسال فرم");
+        tg.MainButton.color = "#D97706";
+        tg.MainButton.textColor = "#FFFFFF";
+      } else {
+        // Retry after a short delay if Telegram WebApp is not ready yet
+        console.log("Telegram WebApp not ready, retrying...");
+        setTimeout(initTelegram, 100);
+      }
+    };
+
+    // Give the browser a moment to load the Telegram script
+    setTimeout(initTelegram, 50);
   }, []);
 
   const handleInputChange = (e) => {
@@ -162,12 +191,9 @@ export default function WorkerForm() {
     }
 
     // Only require images if user is in Armenia
-    if (
-      formData.currentlyInArmenia === "yes" &&
-      images.length === 0
-    ) {
+    if (formData.currentlyInArmenia === "yes" && images.length === 0) {
       toast.error(
-        "لطفاً حداقل یک تصویر از نمونه کارهای خود بارگذاری کنید",
+        "لطفاً حداقل یک تصویر از نمونه کارهای خود بارگذاری کنید"
       );
       return false;
     }
@@ -181,14 +207,17 @@ export default function WorkerForm() {
     if (!validateForm()) return;
 
     if (!telegramUser?.id) {
-      //   toast.error("خطا در شناسایی کاربر تلگرام");
+      console.error("Telegram user not found:", telegramUser);
       toast.error(
-        telegramUser?.id
-          ? `Telegram ID: ${telegramUser.id}`
-          : "No Telegram ID found",
+        "خطا در شناسایی کاربر تلگرام. لطفاً از داخل تلگرام وارد شوید.",
+        {
+          duration: 5000,
+        }
       );
       return;
     }
+
+    console.log("Submitting with Telegram ID:", telegramUser.id);
 
     setLoading(true);
     const toastId = toast.loading("در حال ارسال اطلاعات...");
@@ -198,7 +227,7 @@ export default function WorkerForm() {
       formDataToSend.append("telegramId", telegramUser.id);
       formDataToSend.append(
         "telegramUsername",
-        formData.telegramUsername || telegramUser.username || "",
+        formData.telegramUsername || telegramUser.username || ""
       );
       formDataToSend.append("fullName", formData.fullName);
       formDataToSend.append("age", formData.age);
@@ -208,13 +237,10 @@ export default function WorkerForm() {
       formDataToSend.append("district", formData.district || "");
       formDataToSend.append("specialty", formData.specialty);
       formDataToSend.append("experience", formData.experience);
-      formDataToSend.append(
-        "description",
-        formData.description || "",
-      );
+      formDataToSend.append("description", formData.description || "");
       formDataToSend.append(
         "currentlyInArmenia",
-        formData.currentlyInArmenia,
+        formData.currentlyInArmenia
       );
 
       images.forEach((image) => {
@@ -229,7 +255,7 @@ export default function WorkerForm() {
             "Content-Type": "multipart/form-data",
           },
           timeout: 30000,
-        },
+        }
       );
 
       toast.dismiss(toastId);
@@ -260,6 +286,7 @@ export default function WorkerForm() {
         }
       }, 2000);
     } catch (error) {
+      console.error("Submit error:", error);
       toast.dismiss(toastId);
 
       if (error.response?.status === 429) {
@@ -267,17 +294,14 @@ export default function WorkerForm() {
           "شما قبلاً فرم ارسال کرده‌اید. لطفاً 10 دقیقه دیگر تلاش کنید.",
           {
             duration: 6000,
-          },
+          }
         );
       } else if (error.response?.status === 400) {
         toast.error(
-          error.response.data.message ||
-            "اطلاعات وارد شده نامعتبر است",
+          error.response.data.message || "اطلاعات وارد شده نامعتبر است"
         );
       } else if (error.code === "ECONNABORTED") {
-        toast.error(
-          "زمان ارسال به پایان رسید. لطفاً دوباره تلاش کنید",
-        );
+        toast.error("زمان ارسال به پایان رسید. لطفاً دوباره تلاش کنید");
       } else if (!error.response) {
         toast.error("خطا در برقراری ارتباط با سرور");
       } else {
@@ -294,13 +318,15 @@ export default function WorkerForm() {
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div
           className="absolute w-96 h-96 bg-amber-200/20 rounded-full blur-3xl -top-20 -right-20 animate-pulse"
-          style={{ animationDuration: "4s" }}></div>
+          style={{ animationDuration: "4s" }}
+        ></div>
         <div
           className="absolute w-80 h-80 bg-orange-200/20 rounded-full blur-3xl -bottom-20 -left-20 animate-pulse"
           style={{
             animationDuration: "6s",
             animationDelay: "1s",
-          }}></div>
+          }}
+        ></div>
       </div>
 
       {/* Main Container */}
@@ -315,7 +341,8 @@ export default function WorkerForm() {
                 className="w-8 h-8 md:w-10 md:h-10 text-white"
                 fill="none"
                 stroke="currentColor"
-                viewBox="0 0 24 24">
+                viewBox="0 0 24 24"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -343,7 +370,8 @@ export default function WorkerForm() {
                 className="w-6 h-6 text-white"
                 fill="none"
                 stroke="currentColor"
-                viewBox="0 0 24 24">
+                viewBox="0 0 24 24"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -361,7 +389,8 @@ export default function WorkerForm() {
                   <svg
                     className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0"
                     fill="currentColor"
-                    viewBox="0 0 20 20">
+                    viewBox="0 0 20 20"
+                  >
                     <path
                       fillRule="evenodd"
                       d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
@@ -369,17 +398,17 @@ export default function WorkerForm() {
                     />
                   </svg>
                   <p className="leading-relaxed">
-                    <span className="font-bold">کارت اقامت:</span> پس
-                    از 2 ماه کارکرد و تایید کارفرما، برای شما اقدام به
-                    دریافت کارت اقامت می‌کنیم. هزینه‌های دولتی بر عهده
-                    متقاضی خواهد بود.
+                    <span className="font-bold">کارت اقامت:</span> پس از 2 ماه
+                    کارکرد و تایید کارفرما، برای شما اقدام به دریافت کارت اقامت
+                    می‌کنیم. هزینه‌های دولتی بر عهده متقاضی خواهد بود.
                   </p>
                 </div>
                 <div className="flex items-start gap-2">
                   <svg
                     className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0"
                     fill="currentColor"
-                    viewBox="0 0 20 20">
+                    viewBox="0 0 20 20"
+                  >
                     <path
                       fillRule="evenodd"
                       d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
@@ -387,19 +416,29 @@ export default function WorkerForm() {
                     />
                   </svg>
                   <p className="leading-relaxed">
-                    <span className="font-bold">هزینه معرفی:</span>{" "}
-                    هزینه معرفی به کار{" "}
-                    <span className="font-bold text-blue-900">
-                      10,000 درام
-                    </span>{" "}
-                    می‌باشد که پس از مشغول شدن به کار میتوانید پرداخت
-                    کنید.
+                    <span className="font-bold">هزینه معرفی:</span> هزینه معرفی
+                    به کار{" "}
+                    <span className="font-bold text-blue-900">10,000 درام</span>{" "}
+                    می‌باشد که پس از مشغول شدن به کار میتوانید پرداخت کنید.
                   </p>
                 </div>
               </div>
             </div>
           </div>
         </div>
+
+        {/* Debug Info - Remove in production */}
+        {process.env.NODE_ENV === "development" && (
+          <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4 mb-6">
+            <h3 className="font-bold text-yellow-900 mb-2">Debug Info:</h3>
+            <p className="text-sm text-yellow-800">
+              Telegram User ID: {telegramUser?.id || "Not found"}
+            </p>
+            <p className="text-sm text-yellow-800">
+              Username: {telegramUser?.username || "Not found"}
+            </p>
+          </div>
+        )}
 
         {/* Form Card */}
         <div className="bg-white rounded-3xl shadow-2xl shadow-stone-900/10 p-6 md:p-8">
@@ -417,8 +456,7 @@ export default function WorkerForm() {
                 {/* Full Name */}
                 <div>
                   <label className="block text-sm font-semibold text-stone-700 mb-2">
-                    نام و نام خانوادگی{" "}
-                    <span className="text-red-500">*</span>
+                    نام و نام خانوادگی <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -511,9 +549,7 @@ export default function WorkerForm() {
                         type="radio"
                         name="currentlyInArmenia"
                         value="yes"
-                        checked={
-                          formData.currentlyInArmenia === "yes"
-                        }
+                        checked={formData.currentlyInArmenia === "yes"}
                         onChange={handleInputChange}
                         className="w-4 h-4 text-amber-600 focus:ring-amber-500"
                         disabled={loading}
@@ -555,9 +591,9 @@ export default function WorkerForm() {
                       className="w-full px-4 py-3 border-2 border-stone-200 rounded-xl text-stone-900 bg-white cursor-pointer transition-all duration-200 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 disabled:bg-stone-50 disabled:cursor-not-allowed appearance-none"
                       required={formData.currentlyInArmenia === "yes"}
                       disabled={
-                        loading ||
-                        formData.currentlyInArmenia === "no"
-                      }>
+                        loading || formData.currentlyInArmenia === "no"
+                      }
+                    >
                       <option value="">
                         {formData.currentlyInArmenia === "no"
                           ? "فقط برای افراد در ارمنستان"
@@ -592,7 +628,8 @@ export default function WorkerForm() {
                         loading ||
                         formData.region !== "Yerevan" ||
                         formData.currentlyInArmenia === "no"
-                      }>
+                      }
+                    >
                       <option value="">
                         {formData.currentlyInArmenia === "no"
                           ? "فقط برای افراد در ارمنستان"
@@ -650,19 +687,14 @@ export default function WorkerForm() {
                     onChange={handleInputChange}
                     className="w-full px-4 py-3 border-2 border-stone-200 rounded-xl text-stone-900 bg-white cursor-pointer transition-all duration-200 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 disabled:bg-stone-50 disabled:cursor-not-allowed appearance-none"
                     required
-                    disabled={loading}>
+                    disabled={loading}
+                  >
                     <option value="">انتخاب سابقه کاری</option>
-                    <option value="beginner">
-                      تازه‌کار (کمتر از 1 سال)
-                    </option>
+                    <option value="beginner">تازه‌کار (کمتر از 1 سال)</option>
                     <option value="junior">مبتدی (1-3 سال)</option>
-                    <option value="intermediate">
-                      متوسط (3-5 سال)
-                    </option>
+                    <option value="intermediate">متوسط (3-5 سال)</option>
                     <option value="senior">حرفه‌ای (5-10 سال)</option>
-                    <option value="expert">
-                      خبره (بیش از 10 سال)
-                    </option>
+                    <option value="expert">خبره (بیش از 10 سال)</option>
                   </select>
                 </div>
 
@@ -696,9 +728,9 @@ export default function WorkerForm() {
               <div>
                 <label className="block text-sm font-semibold text-stone-700 mb-2">
                   بارگذاری تصاویر{" "}
-                  {/* {formData.currentlyInArmenia === "yes" && (
+                  {formData.currentlyInArmenia === "yes" && (
                     <span className="text-red-500">*</span>
-                  )} */}
+                  )}
                   <span className="text-xs font-normal text-stone-500 mr-2">
                     (حداکثر 6 تصویر، هر کدام 5 مگابایت)
                   </span>
@@ -707,8 +739,8 @@ export default function WorkerForm() {
                 {formData.currentlyInArmenia === "no" && (
                   <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                     <p className="text-sm text-amber-800">
-                      برای افرادی که در ارمنستان نیستند، بارگذاری
-                      تصاویر الزامی نیست.
+                      برای افرادی که در ارمنستان نیستند، بارگذاری تصاویر
+                      الزامی نیست.
                     </p>
                   </div>
                 )}
@@ -727,12 +759,14 @@ export default function WorkerForm() {
                       images.length >= 6
                         ? "border-stone-200 bg-stone-50 cursor-not-allowed"
                         : "border-amber-300 bg-amber-50/30 hover:bg-amber-50 hover:border-amber-400"
-                    }`}>
+                    }`}
+                  >
                     <svg
                       className="w-8 h-8 text-amber-600"
                       fill="none"
                       stroke="currentColor"
-                      viewBox="0 0 24 24">
+                      viewBox="0 0 24 24"
+                    >
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -758,7 +792,8 @@ export default function WorkerForm() {
                     {imagePreviews.map((preview, index) => (
                       <div
                         key={index}
-                        className="relative aspect-square rounded-xl overflow-hidden shadow-lg">
+                        className="relative aspect-square rounded-xl overflow-hidden shadow-lg"
+                      >
                         <img
                           src={preview}
                           alt={`نمونه کار ${index + 1}`}
@@ -768,12 +803,14 @@ export default function WorkerForm() {
                           type="button"
                           onClick={() => removeImage(index)}
                           className="absolute top-2 right-2 w-8 h-8 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center transition-all duration-200 shadow-lg"
-                          disabled={loading}>
+                          disabled={loading}
+                        >
                           <svg
                             className="w-4 h-4 text-white"
                             fill="none"
                             stroke="currentColor"
-                            viewBox="0 0 24 24">
+                            viewBox="0 0 24 24"
+                          >
                             <path
                               strokeLinecap="round"
                               strokeLinejoin="round"
@@ -796,7 +833,8 @@ export default function WorkerForm() {
             <button
               type="submit"
               className="w-full px-6 py-4 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white text-base font-bold rounded-xl flex items-center justify-center gap-3 transition-all duration-300 shadow-lg shadow-amber-600/30 hover:shadow-xl hover:shadow-amber-600/40 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
-              disabled={loading}>
+              disabled={loading}
+            >
               {loading ? (
                 <>
                   <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -808,7 +846,8 @@ export default function WorkerForm() {
                     className="w-6 h-6"
                     fill="none"
                     stroke="currentColor"
-                    viewBox="0 0 24 24">
+                    viewBox="0 0 24 24"
+                  >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -829,12 +868,12 @@ export default function WorkerForm() {
                 <svg
                   className="w-4 h-4 text-amber-600"
                   fill="currentColor"
-                  viewBox="0 0 24 24">
+                  viewBox="0 0 24 24"
+                >
                   <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
                 </svg>
                 <span className="text-sm font-semibold text-stone-700">
-                  {telegramUser.first_name}{" "}
-                  {telegramUser.last_name || ""}
+                  {telegramUser.first_name} {telegramUser.last_name || ""}
                 </span>
               </div>
             </div>
