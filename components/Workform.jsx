@@ -181,7 +181,12 @@ export default function WorkerForm() {
     if (!validateForm()) return;
 
     if (!telegramUser?.id) {
-      toast.error("خطا در شناسایی کاربر تلگرام");
+      //   toast.error("خطا در شناسایی کاربر تلگرام");
+      toast.error(
+        telegramUser?.id
+          ? `Telegram ID: ${telegramUser.id}`
+          : "No Telegram ID found",
+      );
       return;
     }
 
