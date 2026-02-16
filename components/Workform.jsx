@@ -56,7 +56,7 @@ export default function WorkerForm() {
     if (typeof window !== "undefined" && window.Telegram?.WebApp) {
       const tg = window.Telegram.WebApp;
       tg.ready();
-      tg.expand();
+      //   tg.expand();
 
       const user = tg.initDataUnsafe?.user;
       if (user) {
@@ -387,7 +387,8 @@ export default function WorkerForm() {
                     <span className="font-bold text-blue-900">
                       10,000 درام
                     </span>{" "}
-                    می‌باشد که پس از مشغول شدن به کار میتوانید پرداخت کنید.
+                    می‌باشد که پس از مشغول شدن به کار میتوانید پرداخت
+                    کنید.
                   </p>
                 </div>
               </div>
